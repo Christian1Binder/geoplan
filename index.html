@@ -97,7 +97,10 @@ function layerVisible(id){return layerAncestors(id).length>0&&layerAncestors(id)
 function layerLocked(id){return layerAncestors(id).some(l=>l.locked)}
 function visible(o){return !o.hidden&&layerVisible(o.layerId)}
 function selectionIds(){let ids=new Set([...multiSelection, ...(selected?[selected]:[])]);for(const g of state.groups)if(g.objectIds.some(id=>ids.has(id)))g.objectIds.forEach(id=>ids.add(id));return [...ids].filter(id=>state.objects.some(o=>o.id===id))}
-function selectIds(ids){multiSelection=new Set(ids);selected=ids[0]||null;groupSelection=new Set(ids);activeGroup=state.groups.find(g=>g.objectIds.length===ids.length&&g.objectIds.every(id=>multiSelection.has(id)))?.id||null}
+let selectedMeasurement=null;
+function selectIds(ids){selectedMeasurement=null;multiSelection=new Set(ids);selected=ids[0]||null;groupSelection=new Set(ids);activeGroup=state.groups.find(g=>g.objectIds.length===ids.length&&g.objectIds.every(id=>multiSelection.has(id)))?.id||null}
+function chooseMeasurement(id){selectIds([]);selectedMeasurement=id;mode='select';activeType=null;activeComplex=null;renderAll();$('selectionStatus').textContent='1 Messung ausgewählt'}
+function deleteMeasurement(){let m=state.measurements.find(m=>m.id===selectedMeasurement);if(!m)return;if(layerLocked(m.layerId||'measure'))return setHint('Ebene ist gesperrt.');state.measurements=state.measurements.filter(x=>x.id!==m.id);selectedMeasurement=null;changed()}
 function canEdit(ids=selectionIds()){let blocked=ids.some(id=>{let o=state.objects.find(x=>x.id===id);return !o||o.locked||layerLocked(o.layerId)});if(blocked)setHint('Auswahl gesperrt. Erst Objekt oder Ebene entsperren.');return !blocked&&ids.length>0}
 function selectionSnapshot(ids=selectionIds()){return groupSnapshot({objectIds:ids})}
 function rotateSelection(degrees){let ids=selectionIds();if(!canEdit(ids))return;applyGroupRotation(null,selectionSnapshot(ids),degrees);for(const g of state.groups)if(g.objectIds.every(id=>ids.includes(id)))g.rotation=((Number(g.rotation||0)+degrees)%360+360)%360}
@@ -128,6 +131,7 @@ function planSvg(exporting=false){
  for(const m of state.measurements){
   if(!layerVisible(m.layerId||'measure')||!m.points.length)continue;let p=m.points.map(x=>screen(...x)),ps=points(p),mid=p[Math.floor(p.length/2)];
   out+=m.kind==='area'?`<polygon class="measure" points="${ps}" fill="#0ea5e933" stroke="#0284c7" stroke-width="2"/>`:`<polyline class="measure" points="${ps}" fill="none" stroke="#0284c7" stroke-width="2"/>`;
+  if(!exporting){out+=`<${m.kind==='area'?'polygon':'polyline'} data-measure="${esc(m.id)}" points="${ps}" fill="${m.kind==='area'?'transparent':'none'}" stroke="transparent" stroke-width="14" style="pointer-events:${m.kind==='area'?'all':'stroke'};cursor:move"/>`;if(selectedMeasurement===m.id)out+=`<polyline points="${m.kind==='area'?closed(p):ps}" fill="none" stroke="#f4cf38" stroke-width="3" stroke-dasharray="7 4"/>`}
   label(m.kind==='area'?fmt(m.area)+' m² · '+fmt(m.perimeter)+' m':fmt(m.distance)+' m',mid[0]+6,mid[1]-10,'measure-label',0);
  }
  for(const d of state.dimensions){let a=objects.find(o=>o.id===d.a),b=objects.find(o=>o.id===d.b);if(!a||!b)continue;let pa=screen(a.lat,a.lon),pb=screen(b.lat,b.lon);
@@ -174,6 +178,7 @@ function deleteType(){let key=$('libraryType').value;if(!key)return;if(key.start
 function shapeName(s){return({rectangle:'Rechteck',circle:'Kreis',line:'Linie',polygon:'Polygon'})[s]}
 function objectMetrics(o){let t=typeOf(o.typeId),area=t.shape==='circle'?fmt(Math.PI*(o.diameter/2)**2):t.shape==='line'?'—':fmt(o.length*o.width),frame=o.frameEnabled?`<br>Rahmen: ${fmt(Number(o.frameMargin)||0)} m`:'';return `Position: ${o.lat.toFixed(6)}, ${o.lon.toFixed(6)}<br>Fläche: ${area}${area==='—'?'':' m²'}${frame}`}
 function renderProps(){
+ let measurement=state.measurements.find(m=>m.id===selectedMeasurement);if(measurement){$('properties').innerHTML=`<strong>${measurement.kind==='area'?'Gemessene Fläche':'Messlinie'}</strong><div class="readout">${measurement.kind==='area'?fmt(measurement.area)+' m² · '+fmt(measurement.perimeter)+' m':fmt(measurement.distance)+' m'}</div><button id="deleteMeasurement">Löschen</button>`;$('deleteMeasurement').onclick=deleteMeasurement;return}
  let p=$('properties'),ids=selectionIds(),o=state.objects.find(x=>x.id===selected),g=state.groups.find(g=>g.objectIds.length===ids.length&&g.objectIds.every(id=>ids.includes(id)));if(!o){p.innerHTML='<div class="empty">Objekt auswählen.</div>';return}
  let multi=ids.length>1,t=typeOf(o.typeId),field=(label,prop,type,value,extra='')=>`<div class="row"><label for="prop-${prop}">${label}</label><input id="prop-${prop}" data-prop="${prop}" type="${type}" value="${esc(value??'')}" ${extra}></div>`;
  let html=`<div class="panel-intro"><strong>${multi?(g?esc(g.name):ids.length+' Objekte'):esc(o.label)}</strong><span class="selection-badge">${multi?'Auswahl':'Objekt'}</span></div>`;
@@ -229,6 +234,7 @@ function selectMapObject(id,e){if(!state.objects.some(o=>o.id===id))return;let m
 function mapDown(e){
  if(e.button!==0||e.target.closest('button,select,input,.context-menu,.map-menu,.canvas-tools'))return;
  let target=e.target.closest('[data-object],[data-rotate]'),p=mapPos(e);skipClick=false;
+ let measureHit=e.target.closest('[data-measure]');if(mode==='select'&&measureHit){chooseMeasurement(measureHit.dataset.measure);let m=state.measurements.find(x=>x.id===selectedMeasurement);skipClick=true;if(layerLocked(m.layerId||'measure'))return setHint('Ebene ist gesperrt.');saveHistory();drag={kind:'measurement',id:m.id,start:p,startGeo:geo(...p),points:structuredClone(m.points),moved:false};$('map').setPointerCapture(e.pointerId);e.preventDefault();return}
  if(mode==='marquee'||(mode==='select'&&!target&&e.shiftKey)){drag={kind:'marquee',start:p,end:p,base:e.shiftKey||e.ctrlKey||e.metaKey?selectionIds():[],moved:false};$('map').setPointerCapture(e.pointerId);e.preventDefault();return}
  if(target&&mode==='select'){
   let id=target.dataset.object||selected;if(!id)return;
@@ -246,6 +252,7 @@ function mapMove(e){
  let p=mapPos(e);lastPointer=geo(...p);renderStatus();if(!drag)return;
  let dx=p[0]-drag.start[0],dy=p[1]-drag.start[1];if(Math.hypot(dx,dy)>2)drag.moved=true;if(!drag.moved)return;
  if(drag.kind==='marquee'){drag.end=p;renderOverlay();return}
+ if(drag.kind==='measurement'){let m=state.measurements.find(x=>x.id===drag.id),now=geo(...p),a=drag.startGeo,east=(now[1]-a[1])*Math.PI/180*R*Math.cos(a[0]*Math.PI/180),north=(now[0]-a[0])*Math.PI/180*R;m.points=drag.points.map(q=>offset(...q,east,north));if(m.kind==='area'){m.area=polygonArea(m.points);m.perimeter=m.points.reduce((s,q,i)=>s+metersBetween(q,m.points[(i+1)%m.points.length]),0)}else m.distance=m.points.slice(1).reduce((s,q,i)=>s+metersBetween(m.points[i],q),0);renderOverlay();return}
  if(drag.kind==='map'){state.center=unworld(drag.origin[0]-dx,drag.origin[1]-dy,state.zoom);renderTiles();renderOverlay();return}
  if(drag.kind==='rotate-selection'){let c=screen(...drag.snapshot.center),angle=Math.atan2(p[1]-c[1],p[0]-c[0]),degrees=-(angle-drag.startAngle)*180/Math.PI;if(e.shiftKey)degrees=Math.round(degrees/15)*15;applyGroupRotation(null,drag.snapshot,degrees);for(const [id,initial] of drag.groupAngles){let g=state.groups.find(x=>x.id===id);if(g?.objectIds.every(id=>drag.snapshot.members.some(o=>o.id===id)))g.rotation=((initial+degrees)%360+360)%360}}
  else {let b=geo(...p),a=drag.startGeo,east=(b[1]-a[1])*Math.PI/180*R*Math.cos(drag.snapshot.center[0]*Math.PI/180),north=(b[0]-a[0])*Math.PI/180*R;if(state.snap){let center=snap(offset(...drag.snapshot.center,east,north),drag.snapshot.members.map(o=>o.id));east=(center[1]-drag.snapshot.center[1])*Math.PI/180*R*Math.cos(drag.snapshot.center[0]*Math.PI/180);north=(center[0]-drag.snapshot.center[0])*Math.PI/180*R}for(const o of drag.snapshot.members){let item=state.objects.find(x=>x.id===o.id);[item.lat,item.lon]=offset(drag.snapshot.center[0],drag.snapshot.center[1],o.east+east,o.north+north)}}
@@ -297,6 +304,7 @@ function createCustom(){let name=prompt('Name des Objekttyps:','Eigenes Objekt')
 function key(e){let typing=e.target.closest('input,textarea,select,[contenteditable]'),shortcut=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();if($('actionDialog').open)return;
  if(e.key==='Escape'){$('helpMenu').classList.add('hidden');$('helpBtn').setAttribute('aria-expanded','false');closeContextMenu();closeLayerMenu();if(!typing)cancelTool();return}
  if(typing)return;
+ if(selectedMeasurement&&(e.key==='Delete'||e.key==='Backspace')){e.preventDefault();deleteMeasurement();return}
  if(shortcut){let actions={a:selectAllObjects,g:createGroup,c:copySelection,x:cutSelection,v:pasteSelection,d:duplicate,z:e.shiftKey?redo:undo,y:redo,s:()=>saveFile(e.shiftKey)};if(actions[k]){e.preventDefault();actions[k]();return}}
  let ids=selectionIds();if(!ids.length)return;let step=Number($('moveStep').value),rot=Number($('rotateStep').value),moves={ArrowUp:[0,step],ArrowDown:[0,-step],ArrowLeft:[-step,0],ArrowRight:[step,0]};
  if(moves[e.key]||k==='q'||k==='e'||e.key==='Delete'||e.key==='Backspace'){e.preventDefault();if(!canEdit(ids))return;if(moves[e.key])moveSelection(...moves[e.key]);else if(k==='q'||k==='e')rotateSelection(k==='q'?-rot:rot);else{removeSelectedObjects(ids);return}changed()}
