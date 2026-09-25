@@ -7,7 +7,7 @@ self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 // Kartenausschnitte auch ohne Netzverbindung sichtbar.
 self.addEventListener('fetch',event=>{
   const url=new URL(event.request.url);
-  const isTile=url.hostname==='tile.openstreetmap.org'||url.hostname==='server.arcgisonline.com';
+  const isTile=['tile.openstreetmap.org','server.arcgisonline.com','mapy.geoportal.gov.pl','www.geoportal.lt'].includes(url.hostname);
   if(!isTile)return;
   event.respondWith(caches.open(TILE_CACHE).then(async cache=>{
     const stored=await cache.match(event.request);
