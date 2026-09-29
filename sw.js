@@ -12,7 +12,7 @@ self.addEventListener('fetch',event=>{
   event.respondWith(caches.open(TILE_CACHE).then(async cache=>{
     const stored=await cache.match(event.request);
     if(stored)return stored;
-    try{const response=await fetch(event.request);cache.put(event.request,response.clone());return response}
+    try{const response=await fetch(event.request);if(response.ok||response.type==='opaque')cache.put(event.request,response.clone());return response}
     catch{return new Response('',{status:504,statusText:'Kartenkachel nicht offline gespeichert'})}
   }));
 });
