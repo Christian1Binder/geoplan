@@ -444,7 +444,18 @@ async function updateOfflineStatus(){if(!('caches'in window))return;let c=await 
 /* Routen werden in WGS84 gespeichert. Jede Variante besucht alle Stopps in Reihenfolge. */
 let routeRequest=0,poiRequest=0,routePick=null,lastGeocodeAt=0;
 const routeGeocodes=new Map();
-async function routePoiData(query){let error;for(const endpoint of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){try{return await routeJson(endpoint+'?'+new URLSearchParams({data:query}))}catch(e){error=e}}throw error}
+const routePoiCache=new Map(),routePoiCooldown=new Map();
+async function routePoiData(query){
+ const cached=routePoiCache.get(query);if(cached&&Date.now()-cached.time<300000)return cached.data;
+ for(const endpoint of ['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter']){
+  if((routePoiCooldown.get(endpoint)||0)>Date.now())continue;
+  try{const data=await routeJson(endpoint+'?'+new URLSearchParams({data:query}));
+   if(data.remark||!Array.isArray(data.elements))throw Error('Unvollständige Kartendaten');
+   routePoiCache.set(query,{time:Date.now(),data});if(routePoiCache.size>12)routePoiCache.delete(routePoiCache.keys().next().value);return data;
+  }catch{routePoiCooldown.set(endpoint,Date.now()+30000)}
+ }
+ throw Error('Die Rastanlagen-Dienste sind zurzeit nicht erreichbar oder überlastet. Bitte nach einer Minute erneut versuchen. Bereits geladene Markierungen bleiben erhalten.');
+}
 function routePlan(){return state.routePlan||(state.routePlan={start:'',end:'',via:[],vehicle:'car'})}
 function routeChanged(){routeRequest++;route=null;state.route=null;changed();$('routeStatus').textContent='Route geändert. Bitte neu berechnen.'}
 function renderRouting(){
