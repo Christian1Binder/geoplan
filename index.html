@@ -29,6 +29,15 @@ input,select,textarea{min-width:0;background:#17181c;border:1px solid #45464d;bo
 @media print{body>*{display:none!important}body>.print-image{display:block!important;width:100%;height:auto}body{overflow:visible;background:white}@page{size:landscape;margin:10mm}}
 
 .map-provider.minimized{width:auto!important;max-height:none;overflow:visible}.map-provider.minimized #mapLayersBody{display:none}#toggleMapLayers{width:100%;justify-content:space-between}.route-via{border-left:2px solid var(--accent);padding:8px;margin:8px 0}.route-via label{display:block;font-size:12px;margin-bottom:4px}.route-via .smallbar{margin-top:5px}.route-alternatives{display:grid;gap:6px}.route-choice{display:grid;text-align:left;gap:3px}.route-choice span{font-size:12px}.route-poi-toggle{display:flex;align-items:center;gap:6px;margin-top:10px}
+
+/* Presentation UI stays separate from saved plan data. Attribution remains visible. */
+body.presenting>.top,body.presenting .panel,body.presenting #helpMenu,body.presenting .map-controls,body.presenting .map-menu,body.presenting .canvas-tools,body.presenting .selection-status{display:none!important}
+body.presenting .layout{display:block;height:100dvh}body.presenting .map-wrap{height:100%;width:100%}
+body.presenting .overlay *{pointer-events:none!important}body.presenting .status{background:#17181b99;justify-content:flex-end}body.presenting .status>:not(#source){display:none}
+.presentation-bar{position:absolute;z-index:42;top:12px;left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:8px;border:1px solid #555;border-radius:12px;background:#202125f5;max-width:calc(100% - 20px);width:max-content;box-shadow:0 6px 25px #0005}
+.presentation-bar label{display:flex;align-items:center;gap:5px;font-size:12px}.presentation-bar select{width:95px}.presentation-bar input{width:38px}.presentation-bar button{font-size:13px}.presentation-resume{position:absolute;z-index:43;right:12px;top:12px;opacity:.5}.presentation-resume:hover,.presentation-resume:focus-visible{opacity:1}
+.presentation-ink{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:35}.presentation-laser{position:absolute;width:14px;height:14px;border-radius:50%;background:#ff3434;border:2px solid #fff;box-shadow:0 0 8px 4px #ff2424aa;transform:translate(-50%,-50%);pointer-events:none;z-index:36}
+.presentation-spot{position:absolute;width:190px;height:190px;border-radius:50%;box-shadow:0 0 0 200vmax #000a;transform:translate(-50%,-50%);pointer-events:none;z-index:36}.presentation-black{position:absolute;inset:0;background:#000;z-index:40;display:grid;place-items:center;color:#aaa}.presentation-black button{background:#111}.presentation-drawing{cursor:crosshair}.presentation-pointing{cursor:none}
 </style>
 </head>
 <body>
@@ -133,7 +142,7 @@ function mapLayerAction(e){let row=e.target.closest('[data-map-layer]');if(!row)
 function renderTiles(){let box=$('map').getBoundingClientRect(),tiles=$('tiles'),layers=state.planningMode?[]:state.mapLayers.filter(l=>l.visible&&PROVIDERS[l.provider]?.url);let previous=new Map([...tiles.querySelectorAll('img')].map(img=>[img.dataset.tileKey,img]));tiles.replaceChildren();tiles.style.background=layers.length?'#d9e7e7':'#e8f0ef';for(const layer of layers){let p=PROVIDERS[layer.provider],holder=document.createElement('div');holder.className='tile-layer';holder.dataset.mapLayer=layer.id;holder.style.position='absolute';holder.style.inset='0';holder.style.opacity=layer.opacity;tiles.append(holder);let z=Math.min(state.zoom,p.maxZoom??state.zoom),factor=2**(state.zoom-z),o=viewOrigin().map(v=>v/factor),n=2**z,minX=Math.floor(o[0]/256),maxX=Math.floor((o[0]+box.width/factor)/256),minY=Math.floor(o[1]/256),maxY=Math.floor((o[1]+box.height/factor)/256);for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){if(y<0||y>=n)continue;let left=((x*256-o[0])*factor)+'px',top=((y*256-o[1])*factor)+'px';let add=(url,klass='')=>{let src=mapTileUrl(url,z,x,y),key=`${layer.id}|${klass}|${z}|${x}|${y}|${src}`,img=previous.get(key)||new Image();img.dataset.tileKey=key;img.className='tile '+klass;img.crossOrigin='anonymous';img.draggable=false;img.style.left=left;img.style.top=top;img.style.width=img.style.height=(256*factor)+'px';img.onerror=()=>{img.style.visibility='hidden'};if(img.getAttribute('src')!==src){img.style.visibility='';img.src=src}holder.append(img)};add(p.url);if(p.overlay)add(p.overlay,'infrastructure')}}}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
-function renderOverlay(){let svg=$('overlay'),box=$('map').getBoundingClientRect();svg.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);svg.innerHTML=planSvg(false);if(drag?.kind==='marquee'){let a=drag.start,b=drag.end;svg.innerHTML+=`<rect x="${Math.min(a[0],b[0])}" y="${Math.min(a[1],b[1])}" width="${Math.abs(a[0]-b[0])}" height="${Math.abs(a[1]-b[1])}" fill="#f4cf3826" stroke="#f4cf38" stroke-width="2" stroke-dasharray="6 3" pointer-events="none"/>`}}
+function renderOverlay(){renderPresentation();let svg=$('overlay'),box=$('map').getBoundingClientRect();svg.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);svg.innerHTML=planSvg(false);if(drag?.kind==='marquee'){let a=drag.start,b=drag.end;svg.innerHTML+=`<rect x="${Math.min(a[0],b[0])}" y="${Math.min(a[1],b[1])}" width="${Math.abs(a[0]-b[0])}" height="${Math.abs(a[1]-b[1])}" fill="#f4cf3826" stroke="#f4cf38" stroke-width="2" stroke-dasharray="6 3" pointer-events="none"/>`}}
 function planSvg(exporting=false){
  const box=$('map').getBoundingClientRect(),ids=selectionIds(),objects=state.objects.filter(visible),labels=[],names=[],occupied=[];
  const pt=p=>p.join(','),points=p=>p.map(pt).join(' '),closed=p=>points([...p,p[0]]);
@@ -641,6 +650,95 @@ function initWorkspace(){
  renderAll();
 }
 
-init();initExtras();initSaveActions();$('activeLayer').onchange=e=>{let l=layerOf(e.target.value);if(l?.locked)return alert('Gesperrte Ebenen können nicht aktiv sein.');state.activeLayer=e.target.value;changed()};$('objectList').onclick=e=>{let edit=e.target.closest('[data-edit-object]'),zoom=e.target.closest('[data-zoom-object]');if(edit)selectObject(edit.dataset.editObject);if(zoom)zoomToObject(zoom.dataset.zoomObject)};$('layerMenu').onclick=layerMenuAction;$('helpBtn').onclick=e=>{$('helpMenu').classList.toggle('hidden');e.stopPropagation()};document.addEventListener('pointerdown',e=>{if(!e.target.closest('#layerMenu')&&!e.target.closest('[data-layer-options]'))closeLayerMenu();if(!e.target.closest('#helpMenu')&&!e.target.closest('#helpBtn'))$('helpMenu').classList.add('hidden')});initWorkspace();initRouting();startProjectSession();
+
+// Presentation marks are geographic, temporary, and never serialized with the plan.
+const presentation={active:false,tool:'pan',strokes:[],stroke:null,pointerId:null,timer:null,start:null,fullscreen:false};
+function presentationPrune(now=Date.now()){
+ presentation.strokes=presentation.strokes.filter(s=>s.expires===null||s.expires>now);
+}
+function renderPresentation(){
+ if(!presentation.active)return;
+ presentationPrune();const box=$('map').getBoundingClientRect(),svg=$('presentationInk');
+ svg.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);
+ svg.innerHTML=presentation.strokes.map(s=>{let points=s.points.map(p=>screen(...p));let opacity=s.expires===null?1:Math.min(1,Math.max(0,(s.expires-Date.now())/600));return `<path d="M${points.map(p=>p.join(',')).join(' L')}${points.length===1?' l0.01,0':''}" fill="none" stroke="${s.color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"/>`}).join('');
+}
+function finishPresentationStroke(){
+ if(presentation.stroke)presentation.stroke.expires=Date.now()+presentation.stroke.duration;
+ presentation.stroke=null;
+ if(presentation.pointerId!==null&&$('map').hasPointerCapture(presentation.pointerId))$('map').releasePointerCapture(presentation.pointerId);
+ presentation.pointerId=null;
+}
+function presentationTool(tool){
+ finishPresentationStroke();presentation.tool=tool;
+ $('map').classList.toggle('presentation-drawing',tool==='pen');$('map').classList.toggle('presentation-pointing',tool==='laser');
+ $('presentationLaser').classList.add('hidden');$('presentationSpot').classList.add('hidden');
+ document.querySelectorAll('[data-presentation-tool]').forEach(b=>{b.classList.toggle('active',b.dataset.presentationTool===tool);b.setAttribute('aria-pressed',String(b.dataset.presentationTool===tool))});
+}
+function presentationChrome(show){$('presentationBar').classList.toggle('hidden',!show);$('presentationResume').classList.toggle('hidden',show)}
+function startPresentation(){
+ if(presentation.active)return;
+ presentation.start={center:[...state.center],zoom:state.zoom};presentation.active=true;presentation.strokes=[];
+ cancelTool();selectIds([]);selectedMeasurement=null;drag=null;routePick=null;closeContextMenu();closeLayerMenu();
+ document.body.classList.add('presenting');$('presentationBar').classList.remove('hidden');$('presentationInk').classList.remove('hidden');presentationChrome(true);presentationTool('pan');
+ renderAll();presentation.timer=setInterval(renderPresentation,60);$('presentationExit').focus();
+}
+function stopPresentation(){
+ finishPresentationStroke();presentation.active=false;clearInterval(presentation.timer);presentation.timer=null;presentation.strokes=[];
+ document.body.classList.remove('presenting');$('map').classList.remove('presentation-drawing','presentation-pointing');
+ for(const id of ['presentationBar','presentationResume','presentationInk','presentationLaser','presentationSpot','presentationBlack'])$(id).classList.add('hidden');
+ $('presentationInk').innerHTML='';drag=null;
+ if(presentation.fullscreen&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});presentation.fullscreen=false;
+ renderAll();$('presentationBtn').focus();
+}
+async function presentationFullscreen(){
+ try{if(document.fullscreenElement){await document.exitFullscreen();presentation.fullscreen=false}else{await document.documentElement.requestFullscreen();presentation.fullscreen=true}}catch{setHint('Browser-Vollbild ist hier nicht verfügbar. Der Präsentationsmodus bleibt aktiv.')}
+}
+function initPresentation(){
+ const button=document.createElement('button');button.id='presentationBtn';button.textContent='Präsentieren';button.title='Präsentationsmodus starten';$('saveBtn').before(button);button.onclick=startPresentation;
+ $('map').insertAdjacentHTML('beforeend',`<svg id="presentationInk" class="presentation-ink hidden" aria-hidden="true"></svg><div id="presentationLaser" class="presentation-laser hidden"></div><div id="presentationSpot" class="presentation-spot hidden"></div><div id="presentationBlack" class="presentation-black hidden"><button id="presentationUnpause">Präsentation fortsetzen</button></div><div id="presentationBar" class="presentation-bar hidden" role="toolbar" aria-label="Präsentationswerkzeuge">
+ <button data-presentation-tool="pan" title="Karte verschieben · V">Hand</button><button data-presentation-tool="pen" title="Zeichnen · S">Stift</button><button data-presentation-tool="laser" title="Laserpointer · L">Laser</button><button data-presentation-tool="spot" title="Spotlight · O">Spotlight</button>
+ <label>Farbe <input id="presentationColor" type="color" value="#ffcf33" aria-label="Stiftfarbe"></label><label>Verblassen <select id="presentationDuration" aria-label="Zeichnung verschwindet nach"><option value="2000">2 Sek.</option><option value="5000" selected>5 Sek.</option><option value="10000">10 Sek.</option><option value="30000">30 Sek.</option><option value="60000">60 Sek.</option></select></label>
+ <button id="presentationClear" title="Zeichnungen entfernen · C">Löschen</button><button id="presentationHome">Startausschnitt</button><button id="presentationPause" title="Schwarze Pausenansicht · B">Pause</button><button id="presentationFullscreen">Vollbild</button><button id="presentationHide" title="Werkzeuge ausblenden · H">Ausblenden</button><button id="presentationExit" title="Präsentation beenden · Esc">Beenden</button></div><button id="presentationResume" class="presentation-resume hidden" aria-label="Präsentationswerkzeuge einblenden" title="Werkzeuge einblenden · H">•••</button>`);
+ $('presentationBar').onclick=e=>{let b=e.target.closest('[data-presentation-tool]');if(b)presentationTool(b.dataset.presentationTool)};
+ $('presentationExit').onclick=stopPresentation;$('presentationFullscreen').onclick=presentationFullscreen;
+ $('presentationHide').onclick=()=>presentationChrome(false);$('presentationResume').onclick=()=>presentationChrome(true);
+ $('presentationClear').onclick=()=>{finishPresentationStroke();presentation.strokes=[];renderPresentation()};
+ $('presentationHome').onclick=()=>{state.center=[...presentation.start.center];state.zoom=presentation.start.zoom;renderAll()};
+ $('presentationPause').onclick=()=>{finishPresentationStroke();$('presentationBlack').classList.toggle('hidden');$('presentationLaser').classList.add('hidden');$('presentationSpot').classList.add('hidden')};
+ $('presentationUnpause').onclick=()=>$('presentationBlack').classList.add('hidden');
+ const ui=e=>e.target.closest('#presentationBar,#presentationResume,#presentationBlack');
+ for(const name of ['pointerdown','pointermove','pointerup','pointercancel'])$('map').addEventListener(name,e=>{
+  if(!presentation.active)return;
+  if(ui(e)){e.stopPropagation();return}
+  if(presentation.tool==='pan'){if(name==='pointerdown'&&e.button===0){e.stopImmediatePropagation();e.preventDefault();drag={kind:'map',start:mapPos(e),origin:world(...state.center,state.zoom),moved:false};$('map').setPointerCapture(e.pointerId)}return;}
+  e.stopImmediatePropagation();e.preventDefault();const p=mapPos(e);
+  if(presentation.tool==='laser'||presentation.tool==='spot'){
+   let n=$(presentation.tool==='laser'?'presentationLaser':'presentationSpot');n.classList.remove('hidden');n.style.left=p[0]+'px';n.style.top=p[1]+'px';return;
+  }
+  if(name==='pointerdown'&&e.button===0&&presentation.pointerId===null){
+   presentation.pointerId=e.pointerId;presentation.stroke={points:[geo(...p)],color:$('presentationColor').value,duration:Number($('presentationDuration').value),expires:null};presentation.strokes.push(presentation.stroke);$('map').setPointerCapture(e.pointerId);
+  }else if(e.pointerId===presentation.pointerId){
+   if(name==='pointermove'&&presentation.stroke){let prev=screen(...presentation.stroke.points.at(-1));if(Math.hypot(p[0]-prev[0],p[1]-prev[1])>=2)presentation.stroke.points.push(geo(...p))}
+   if(name==='pointerup'||name==='pointercancel')finishPresentationStroke();
+  }renderPresentation();
+ },true);
+ $('map').addEventListener('pointerleave',()=>{for(const id of ['presentationLaser','presentationSpot'])$(id).classList.add('hidden')});
+ for(const name of ['click','dblclick','contextmenu'])$('map').addEventListener(name,e=>{if(presentation.active&&!ui(e)){e.preventDefault();e.stopImmediatePropagation()}},true);
+ $('map').addEventListener('wheel',e=>{if(presentation.active&&(ui(e)||presentation.stroke)){e.preventDefault();e.stopImmediatePropagation()}},{capture:true,passive:false});
+ window.addEventListener('blur',()=>{if(presentation.active){finishPresentationStroke();drag=null;$('presentationLaser').classList.add('hidden');$('presentationSpot').classList.add('hidden')}});
+ window.addEventListener('keydown',e=>{
+  if(!presentation.active)return;
+  e.stopImmediatePropagation();
+  if(e.key==='Escape'){e.preventDefault();stopPresentation();return}
+  if(e.target.closest('input,select,textarea')||e.ctrlKey||e.metaKey||e.altKey)return;
+  const k=e.key.toLowerCase(),tools={v:'pan',s:'pen',l:'laser',o:'spot'};
+  if(tools[k]){e.preventDefault();presentationTool(tools[k])}
+  if(k==='h'){e.preventDefault();presentationChrome($('presentationBar').classList.contains('hidden'))}
+  if(k==='b'){e.preventDefault();$('presentationPause').click()}
+  if(k==='c'){e.preventDefault();$('presentationClear').click()}
+ },true);
+}
+
+init();initExtras();initSaveActions();$('activeLayer').onchange=e=>{let l=layerOf(e.target.value);if(l?.locked)return alert('Gesperrte Ebenen können nicht aktiv sein.');state.activeLayer=e.target.value;changed()};$('objectList').onclick=e=>{let edit=e.target.closest('[data-edit-object]'),zoom=e.target.closest('[data-zoom-object]');if(edit)selectObject(edit.dataset.editObject);if(zoom)zoomToObject(zoom.dataset.zoomObject)};$('layerMenu').onclick=layerMenuAction;$('helpBtn').onclick=e=>{$('helpMenu').classList.toggle('hidden');e.stopPropagation()};document.addEventListener('pointerdown',e=>{if(!e.target.closest('#layerMenu')&&!e.target.closest('[data-layer-options]'))closeLayerMenu();if(!e.target.closest('#helpMenu')&&!e.target.closest('#helpBtn'))$('helpMenu').classList.add('hidden')});initWorkspace();initRouting();initPresentation();startProjectSession();
 </script>
 </body></html>
