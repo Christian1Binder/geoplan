@@ -15,5 +15,7 @@ async function request(url,mode='default'){let answer,background;handlers.fetch(
  failWrites=false;html=true;r=await request(url);assert.equal(r.status,504);assert.equal(records.size,0);
  // Legacy opaque records cannot satisfy CORS image requests.
  records.set(url,{clone:()=>({ok:false,type:'opaque'})});html=false;r=await request(url);assert.equal(await r.text(),'fresh');
+ const beforeDirect=calls;handlers.fetch({request:{url,destination:'image',mode:'no-cors',method:'GET'},respondWith:()=>assert.fail('direct images must bypass worker'),waitUntil:()=>assert.fail('direct images must bypass cache')});assert.equal(calls,beforeDirect);
+ const cdn=url.replace('server.arcgisonline.com','services.arcgisonline.com');r=await request(cdn);assert.equal(await r.text(),'fresh');
  console.log('PASS: cache revalidation, network refresh, cached fallback, cache/quota failures, rejection of HTML errors and legacy opaque CORS cache.');
 })().catch(e=>{console.error(e);process.exit(1)});

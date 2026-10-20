@@ -1,5 +1,5 @@
 const TILE_CACHE='lageplaner-tiles-v1';
-const TILE_HOSTS=['tile.openstreetmap.org','server.arcgisonline.com','mapy.geoportal.gov.pl','www.geoportal.lt'];
+const TILE_HOSTS=['tile.openstreetmap.org','server.arcgisonline.com','services.arcgisonline.com','mapy.geoportal.gov.pl','www.geoportal.lt'];
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 
@@ -9,10 +9,10 @@ async function tileCache(){try{return await caches.open(TILE_CACHE)}catch{return
 function readableTile(response,request){return response&&((response.ok&&/^(image\/|application\/octet-stream)/i.test(response.headers.get('Content-Type')||''))||(request.mode==='no-cors'&&response.type==='opaque'))}
 async function cachedTile(cache,request){try{const r=await cache?.match(request);return readableTile(r,request)?r:null}catch{return null}}
 async function networkTile(request,cache){
- const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),25000);
  try{
   const response=await fetch(new Request(request,{signal:controller.signal}));
-  if(!readableTile(response,request))throw Error('Kartenquelle antwortet mit '+response.status);
+  if(!readableTile(response,request)){const error=Error(response.ok?'Keine Bildantwort':'HTTP '+response.status);error.status=response.status;throw error}
   if(cache)try{await cache.put(request,response.clone())}catch{}
   return response;
  }finally{clearTimeout(timeout)}
@@ -23,6 +23,7 @@ function staleTile(response){
  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
 }
 self.addEventListener('fetch',event=>{
+ if(event.request.destination==='image'&&event.request.mode==='no-cors')return;
  if(event.request.method!=='GET'||!TILE_HOSTS.includes(new URL(event.request.url).hostname))return;
  const cachePromise=tileCache(),storedPromise=cachePromise.then(c=>cachedTile(c,event.request));
  const freshPromise=cachePromise.then(c=>networkTile(event.request,c));
@@ -31,6 +32,6 @@ self.addEventListener('fetch',event=>{
  event.respondWith((async()=>{
   const stored=await storedPromise;
   if(stored&&event.request.cache!=='reload')return stored;
-  try{return await freshPromise}catch{return stored?staleTile(stored):new Response('',{status:504,statusText:'Kartenquelle nicht erreichbar'})}
+  try{return await freshPromise}catch(error){return stored?staleTile(stored):new Response('',{status:error.status>=400?error.status:504,headers:{'X-GeoPlan-Error':error.name==='AbortError'?'Zeitlimit am Bildserver':error.message||'Netzwerkfehler'},statusText:'Kachelabruf fehlgeschlagen'})}
  })());
 });
