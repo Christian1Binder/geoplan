@@ -26,8 +26,16 @@ for (const z of [0, 7, 19, 20]) {
  assert.equal(lt.searchParams.get('imageSR'),'3857');
  assert.equal(pl.searchParams.get('TRANSPARENT'),'TRUE');
  assert.equal(lt.searchParams.get('transparent'),'true');
+ for(const provider of ['bavaria','thuringia']){
+  const regional=new URL(vm.runInContext(`mapTileUrl(PROVIDERS.${provider}.url,${z},${x},${y})`,context));
+  assert.equal(regional.searchParams.get('BBOX'),pl.searchParams.get('BBOX'));
+  assert.equal(regional.searchParams.get('CRS'),'EPSG:3857');
+  assert.equal(regional.searchParams.get('TRANSPARENT'),'TRUE');
+  assert.equal(regional.searchParams.get('FORMAT'),provider==='bavaria'?'image/vnd.jpeg-png':'image/png');
+  assert.equal(regional.searchParams.get('LAYERS'),provider==='bavaria'?'by_dop20c':'th_dop');
+ }
 }
-console.log('PASS: legacy migration is stable; both national maps use identical geographic bounds and transparent images at every tested zoom.');
+console.log('PASS: legacy migration is stable; national and regional maps use identical geographic bounds and transparent images at every tested zoom.');
 const row={dataset:{mapLayer:'lt'},querySelector:()=>output};
 const output={textContent:''},holder={dataset:{mapLayer:'lt'},style:{opacity:'1'}};
 const list={innerHTML:''},tiles={children:[holder]};

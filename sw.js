@@ -1,5 +1,5 @@
 const TILE_CACHE='lageplaner-tiles-v1';
-const TILE_HOSTS=['tile.openstreetmap.org','server.arcgisonline.com','services.arcgisonline.com','mapy.geoportal.gov.pl','www.geoportal.lt'];
+const TILE_HOSTS=['tile.openstreetmap.org','server.arcgisonline.com','services.arcgisonline.com','mapy.geoportal.gov.pl','www.geoportal.lt','geoservices.bayern.de','www.geoproxy.geoportal-th.de'];
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 

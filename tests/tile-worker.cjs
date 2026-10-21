@@ -17,5 +17,9 @@ async function request(url,mode='default'){let answer,background;handlers.fetch(
  records.set(url,{clone:()=>({ok:false,type:'opaque'})});html=false;r=await request(url);assert.equal(await r.text(),'fresh');
  const beforeDirect=calls;handlers.fetch({request:{url,destination:'image',mode:'no-cors',method:'GET'},respondWith:()=>assert.fail('direct images must bypass worker'),waitUntil:()=>assert.fail('direct images must bypass cache')});assert.equal(calls,beforeDirect);
  const cdn=url.replace('server.arcgisonline.com','services.arcgisonline.com');r=await request(cdn);assert.equal(await r.text(),'fresh');
+ for(const regional of ['https://geoservices.bayern.de/od/wms/dop/v1/dop20?REQUEST=GetMap','https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP20?REQUEST=GetMap']){
+  r=await request(regional);assert.equal(await r.text(),'fresh');assert.ok(records.has(regional));
+  failNetwork=true;r=await request(regional,'reload');assert.equal(await r.text(),'fresh');assert.equal(r.headers.get('X-GeoPlan-Fallback'),'1');failNetwork=false;
+ }
  console.log('PASS: cache revalidation, network refresh, cached fallback, cache/quota failures, rejection of HTML errors and legacy opaque CORS cache.');
 })().catch(e=>{console.error(e);process.exit(1)});
