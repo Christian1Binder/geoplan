@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+const elements=new Map(),el=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',setAttribute(){},getBoundingClientRect:()=>({width:900,height:650}),hasPointerCapture:()=>false});return elements.get(id)};
+const c=vm.createContext({document:{getElementById:el},crypto:require('node:crypto').webcrypto,setTimeout,clearTimeout,setInterval,clearInterval,structuredClone});
+vm.runInContext(source.slice(0,source.lastIndexOf('\ninit();')),c);const run=s=>vm.runInContext(s,c);
+run("presentation.strokes=[{expires:99},{expires:101},{expires:null}];presentationPrune(100)");assert.equal(run('presentation.strokes.length'),2);
+run("presentation.stroke={points:[[51,10],[51.1,10.1]],color:'#ffcf33',expires:null,duration:5000};presentation.strokes=[presentation.stroke];presentation.active=true;finishPresentationStroke()");
+assert.equal(run('presentation.stroke'),null);assert.ok(run('presentation.strokes[0].expires>Date.now()'));
+run('renderPresentation()');const before=el('presentationInk').innerHTML;assert.match(before,/stroke="#ffcf33"/);
+run('state.center=[52,11];renderPresentation()');assert.notEqual(el('presentationInk').innerHTML,before);
+assert.ok(run('!JSON.stringify(state).includes("strokes")'));
+run('presentationPrune(Date.now()+6000)');assert.equal(run('presentation.strokes.length'),0);
+console.log('PASS: stroke expiry, expiry after release, geographic anchoring, and separation from saved plan.');
