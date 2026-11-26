@@ -41,6 +41,9 @@ body.presenting .overlay *{pointer-events:none!important}body.presenting .status
 
 .folder-controls{display:grid;gap:8px;margin-bottom:12px}.folder-controls label{display:grid;gap:4px;font-size:12px;color:var(--muted)}.folder-controls .smallbar select{flex:1;min-width:100px}.project-folder{border:1px solid var(--line);border-radius:9px;background:#1c1d21;overflow:hidden}.project-folder.active-project-folder{border-color:#9a862c}.project-folder-head{padding:9px;display:grid;gap:7px}.project-folder-head>button{width:100%;text-align:left;overflow-wrap:anywhere}.project-folder-head small{color:var(--muted)}.project-folder-body{display:grid;gap:7px;padding:0 8px 8px}.project-folder-head .smallbar button{font-size:12px;padding:4px 7px}.project-folder-head details summary{cursor:pointer;font-size:12px;color:var(--muted)}.object-hidden-status{color:#ffd17d!important}.object-row.is-hidden{border-style:dashed}.project-folder-body .object-main{grid-template-columns:18px minmax(0,1fr)}
 </style>
+<style>
+.v2-export{width:1000px;max-width:95vw;max-height:92dvh;padding:16px}.v2-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.v2-dialog-head h2{margin:0}.v2-export-grid{display:grid;grid-template-columns:minmax(200px,245px) minmax(0,1fr);gap:16px;margin-top:12px}.v2-export-options{display:grid;gap:7px;align-content:start}.v2-export-options>label,#v2PaperOptions>label{display:grid;gap:3px;font-size:12px}.v2-checks{display:grid;gap:4px;padding-top:5px}.v2-checks label,#v2IncompleteRow{display:flex;gap:7px;align-items:center;font-size:12px}.v2-export-preview{min-width:0}.v2-export-preview progress{width:100%;height:6px;accent-color:var(--accent)}#v2PreviewImage{background:#151619;display:grid;place-items:center;min-height:120px;padding:7px}#v2PreviewImage canvas{max-width:100%;max-height:56dvh;object-fit:contain;height:auto;width:auto}#v2PaperOptions{display:grid;gap:6px}#v2ExportStatus{margin:4px 0;min-height:2.8em}#v2IncompleteRow{color:#ffd17d;margin-top:8px}.v2-export footer{flex-wrap:wrap;position:sticky;bottom:-16px;background:var(--paper);padding:8px 0;z-index:2}@media(max-width:650px){.v2-export-grid{grid-template-columns:1fr}.v2-export-options{grid-template-columns:1fr 1fr}.v2-checks,#v2PaperOptions{grid-column:1/-1}.v2-checks{grid-template-columns:1fr 1fr}#v2PaperOptions:not(.hidden){grid-template-columns:1fr 1fr 1fr}#v2PreviewImage canvas{max-height:40dvh}}
+</style>
 </head>
 <body>
 <header class="top">
@@ -119,7 +122,7 @@ function setupSections(){document.querySelectorAll('.panel .section').forEach(se
 /* Web-Mercator Kartenansicht. Geometrien bleiben in Länge/Breite und werden nur zum Zeichnen projiziert. */
 function world(lat,lon,z){let s=256*2**z,x=(lon+180)/360*s,la=Math.max(-85.05112878,Math.min(85.05112878,lat))*Math.PI/180,y=(1-Math.log(Math.tan(Math.PI/4+la/2))/Math.PI)/2*s;return[x,y]}
 function unworld(x,y,z){let s=256*2**z,lon=x/s*360-180,n=Math.PI-2*Math.PI*y/s,lat=180/Math.PI*Math.atan(.5*(Math.exp(n)-Math.exp(-n)));return[lat,lon]}
-function viewOrigin(){let r=$('map').getBoundingClientRect(),c=world(state.center[0],state.center[1],state.zoom);return[c[0]-r.width/2,c[1]-r.height/2]}
+function viewOrigin(){let r=v2ProjectionBox||$('map').getBoundingClientRect(),c=world(state.center[0],state.center[1],state.zoom);return[c[0]-r.width/2,c[1]-r.height/2]}
 function screen(lat,lon){let o=viewOrigin(),p=world(lat,lon,state.zoom);return[p[0]-o[0],p[1]-o[1]]}function geo(x,y){let o=viewOrigin();return unworld(o[0]+x,o[1]+y,state.zoom)}
 /* Lokale ENU-Approximation: Meter → geografische Koordinaten. Für Objekte in üblichen Planungsgrößen metrisch korrekt. */
 function offset(lat,lon,east,north){return[lat+north/R*180/Math.PI,lon+east/(R*Math.cos(lat*Math.PI/180))*180/Math.PI]}
@@ -152,7 +155,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 
 function renderOverlay(){renderPresentation();let svg=$('overlay'),box=$('map').getBoundingClientRect();svg.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);svg.innerHTML=planSvg(false);if(drag?.kind==='marquee'){let a=drag.start,b=drag.end;svg.innerHTML+=`<rect x="${Math.min(a[0],b[0])}" y="${Math.min(a[1],b[1])}" width="${Math.abs(a[0]-b[0])}" height="${Math.abs(a[1]-b[1])}" fill="#f4cf3826" stroke="#f4cf38" stroke-width="2" stroke-dasharray="6 3" pointer-events="none"/>`}}
 function planSvg(exporting=false){
- const box=$('map').getBoundingClientRect(),ids=selectionIds(),objects=state.objects.filter(visible),labels=[],names=[],occupied=[];
+ const box=v2ProjectionBox||$('map').getBoundingClientRect(),ids=selectionIds(),objects=state.objects.filter(visible),labels=[],names=[],occupied=[];
  const pt=p=>p.join(','),points=p=>p.map(pt).join(' '),closed=p=>points([...p,p[0]]);
  let out=state.grid?gridSvg(box):'';
  function label(text,x,y,klass='obj-label',priority=1){labels.push({text,x,y,klass,priority})}
@@ -161,7 +164,7 @@ function planSvg(exporting=false){
   out+=`<g class="obj" data-object="${esc(o.id)}"><polyline points="${isLine?points(p):closed(p)}" fill="${isLine?'none':o.color}" fill-opacity="${o.opacity}" stroke="${o.color}" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
   if(chosen&&!exporting)out+=`<polyline class="selection-outline" points="${isLine?points(p):closed(p)}" fill="none" stroke="#16171b" stroke-width="6"/><polyline class="selection-outline" points="${isLine?points(p):closed(p)}" fill="none" stroke="#f4cf38" stroke-width="3" stroke-dasharray="7 4"/>`;
   out+='</g>';
-  if(detail)out+=objectDimensionSvg(o,t,p,c);
+  if(detail&&(!exporting||v2ExportDimensions))out+=objectDimensionSvg(o,t,p,c);
   let fp=framePoints(o);if(fp.length)out+=`<polyline class="frame" points="${closed(fp.map(x=>screen(...x)))}" fill="none" stroke="${o.frameColor||'#b91c1c'}" stroke-width="2" ${o.frameStyle==='solid'?'':'stroke-dasharray="7 4"'}/>`;
   if(state.labelMode!=='none'&&!state.groups.some(g=>g.objectIds.includes(o.id)))names.push({text:o.label||t.name,c,priority:chosen?0:2});
  }
@@ -435,24 +438,7 @@ async function exportOfflinePack(){if(offlineEnabled)return setHint('Zum Erzeuge
 async function loadOfflinePackage(){let path=new URLSearchParams(location.search).get('offlinePackage');if(!path)return;try{let pack=await fetch(path).then(r=>r.json());if(!['geoplan-offline-v1','geoplan-offline-v2'].includes(pack.format)||!pack.project)throw Error('Paket');if(pack.format==='geoplan-offline-v2'){for(const[key,p]of Object.entries(pack.providers||{})){PROVIDERS[key]=p;$('provider').add(new Option(p.name,key))}state=pack.project}else{PROVIDERS.offline={name:'Offline-Paket',url:pack.tileTemplate,attribution:'geteiltes Offline-Paket',year:new Date(pack.createdAt).getFullYear()};$('provider').add(new Option(PROVIDERS.offline.name,'offline'));state=pack.project;state.provider='offline';state.mapLayers=[{id:uid(),provider:'offline',visible:true,opacity:1}]}normalizeLibrary();$('projectName').value=state.name||'Offline-Projekt';$('provider').value=state.provider;history=[];future=[];saveHistory();renderAll();$('packageStatus').textContent=`Offline-Paket „${pack.name||'Teamkarte'}“ geladen – Kartenebenen, Plan und Bibliothek stehen ohne Internet bereit.`}catch{$('packageStatus').textContent='Offline-Paket konnte nicht geladen werden.'}}
 async function newProject(){if(!await askConfirm('Neues Projekt','Nicht gespeicherte Änderungen gehen verloren. Die Bibliothek bleibt erhalten.'))return;state={name:'Neues Lageprojekt',projectId:uid(),description:'',center:[...DEFAULT_CENTER],zoom:5,provider:'osm',mapLayers:[{id:uid(),provider:'osm',visible:true,opacity:1}],labelMode:'smart',layers:structuredClone(state.layers),libraryCategories:structuredClone(state.libraryCategories),types:structuredClone(state.types),complexTemplates:structuredClone(state.complexTemplates),objects:[],measurements:[],dimensions:[],groups:[],grid:false,snap:true,planningMode:false,route:null,activeLayer:null};route=null;state.activeLayer=state.layers.find(l=>l.kind!=='folder'&&!layerLocked(l.id))?.id||null;saveHandle=null;lastProjectFilename=null;selectIds([]);activeType=null;activeComplex=null;mode='select';draft=[];history=[];future=[];$('projectName').value=state.name;saveHistory();renderAll();backupLocal();setHint('Neues Projekt angelegt.')}
 async function search(){let q=$('search').value.trim();if(!q)return;let m=q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*$/);if(m){state.center=[Number(m[1]),Number(m[2])];state.zoom=17;changed();return}if(offlineEnabled)return setHint('Ortssuche benötigt eine Verbindung. Koordinaten können offline eingegeben werden.');try{let r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q),{headers:{Accept:'application/json'}}),x=await r.json();if(!x[0])throw 0;state.center=[Number(x[0].lat),Number(x[0].lon)];state.zoom=17;changed()}catch{alert('Ort nicht gefunden. Bitte Adresse oder Koordinaten prüfen.')}}
-async function exportPlan(print=false){
- try{let {canvas,missing}=await buildExportCanvas(),name=projectFilename().replace('.json','.png');if(print){$('printImage').src=canvas.toDataURL('image/png');await $('printImage').decode();window.print()}else{let blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));downloadBlob(blob,name)}
- setHint(missing?'Export erstellt · '+missing+' Kartenkachel(n) fehlen.':'Plan vollständig exportiert.');
- }catch(error){setHint('Export fehlgeschlagen: '+error.message)}
-}
-async function buildExportCanvas(){
- let box=$('map').getBoundingClientRect(),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d'),missing=0;canvas.width=Math.round(box.width*2);canvas.height=Math.round((box.height+65)*2);ctx.scale(2,2);
- ctx.fillStyle='#fff';ctx.fillRect(0,0,box.width,box.height+65);ctx.save();ctx.translate(0,40);ctx.beginPath();ctx.rect(0,0,box.width,box.height);ctx.clip();ctx.fillStyle='#e8e8e2';ctx.fillRect(0,0,box.width,box.height);
- const images=[...$('tiles').querySelectorAll('img')];await Promise.all(images.map(img=>img.complete?Promise.resolve():Promise.race([img.decode().catch(()=>{}),new Promise(r=>setTimeout(r,1800))])));
- for(const img of images){if(img.dataset.tileDisplayOnly==='true'||!img.complete||!img.naturalWidth){missing++;continue}
- try{let scratch=document.createElement('canvas');scratch.width=scratch.height=256;let sc=scratch.getContext('2d');sc.drawImage(img,0,0);sc.getImageData(0,0,1,1);let layerOpacity=Number(img.closest('.tile-layer')?.style.opacity);if(!Number.isFinite(layerOpacity))layerOpacity=1;ctx.globalAlpha=layerOpacity*(img.classList.contains('infrastructure')?.43:1);ctx.globalCompositeOperation=img.classList.contains('infrastructure')?'multiply':'source-over';ctx.drawImage(img,parseFloat(img.style.left),parseFloat(img.style.top),parseFloat(img.style.width)||256,parseFloat(img.style.height)||256)}catch{missing++}}
- ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
- let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${box.width}" height="${box.height}" viewBox="0 0 ${box.width} ${box.height}"><style>text{font:12px Arial;paint-order:stroke;stroke:white;stroke-width:3px;stroke-linejoin:round;fill:#191b21}.group-label{font-weight:bold}.dim-label{fill:#733a15}.measure-label{fill:#153e6d}.gridline{stroke:#33333323;stroke-width:1}</style>${planSvg(true)}</svg>`,url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'})),image=new Image();
- try{image.src=url;await image.decode();ctx.drawImage(image,0,0)}finally{URL.revokeObjectURL(url)}
- ctx.restore();ctx.fillStyle='#18191c';ctx.fillRect(0,0,box.width,40);ctx.fillStyle='#f4cf38';ctx.font='bold 16px Arial';ctx.fillText(state.name,14,25);ctx.fillStyle='#fff';ctx.font='11px Arial';ctx.fillText($('scale').textContent,Math.max(box.width-190,150),25);
- ctx.fillStyle='#fff';ctx.fillRect(0,box.height+40,box.width,25);ctx.fillStyle='#34363a';ctx.font='10px Arial';ctx.fillText(mapAttribution()+(missing?' · '+missing+' Kartenkacheln fehlen':''),12,box.height+56);
- return{canvas,missing};
-}
+function exportPlan(print=false){v2ExportDialog(print?'pdf':'png')}
 function currentTileEntries(){let box=$('map').getBoundingClientRect(),entries=[];for(const layer of visibleMapLayers()){let p=PROVIDERS[layer.provider],z=Math.min(state.zoom,p.maxZoom??state.zoom),factor=2**(state.zoom-z),o=viewOrigin().map(v=>v/factor),n=2**z,minX=Math.floor(o[0]/256)-1,maxX=Math.floor((o[0]+box.width/factor)/256)+1,minY=Math.floor(o[1]/256)-1,maxY=Math.floor((o[1]+box.height/factor)/256)+1;for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++)if(y>=0&&y<n){let tx=((x%n)+n)%n;entries.push({layerId:layer.id,kind:'base',z,x:tx,y,url:mapTileUrl(p.url,z,x,y)});if(p.overlay)entries.push({layerId:layer.id,kind:'overlay',z,x:tx,y,url:mapTileUrl(p.overlay,z,x,y)})}}return entries}
 function focusedObjectTileEntries(detailZoom){let entries=[],seen=new Set(),layers=visibleMapLayers(),objects=state.objects.filter(o=>!o.hidden&&Number.isFinite(o.lat)&&Number.isFinite(o.lon)),radius=150;for(const o of objects){let t=typeOf(o.typeId),extent=Math.max(Number(o.length)||0,Number(o.width)||0,Number(o.diameter)||0,Number(o.frameMargin||0)*2);radius=Math.max(radius,Math.ceil(extent/2+100))}for(const layer of layers){let p=PROVIDERS[layer.provider],top=Math.min(detailZoom,p.maxZoom??detailZoom);for(let z=Math.min(state.zoom+1,top);z<=top;z++){let n=2**z;for(const o of objects){let extent=Math.max(Number(o.length)||0,Number(o.width)||0,Number(o.diameter)||0,Number(o.frameMargin||0)*2),areaRadius=Math.max(150,extent/2+100),mpp=Math.cos(o.lat*Math.PI/180)*ORIGIN/(256*n),r=areaRadius/mpp,c=world(o.lat,o.lon,z),minX=Math.floor((c[0]-r)/256),maxX=Math.floor((c[0]+r)/256),minY=Math.floor((c[1]-r)/256),maxY=Math.floor((c[1]+r)/256);for(let y=minY;y<=maxY;y++)for(let x=minX;x<=maxX;x++){if(y<0||y>=n)continue;let tx=((x%n)+n)%n,add=(kind,url)=>{let key=`${layer.id}|${kind}|${z}|${tx}|${y}`;if(seen.has(key))return;seen.add(key);entries.push({layerId:layer.id,kind,z,x:tx,y,url:mapTileUrl(url,z,x,y)})};add('base',p.url);if(p.overlay)add('overlay',p.overlay)}}}}return{entries,radius}}
 function adaptiveOfflineEntries(){let overview=currentTileEntries(),desired=20,detailZoom=desired,focused={entries:[],radius:150},hasObjects=state.objects.some(o=>!o.hidden&&Number.isFinite(o.lat)&&Number.isFinite(o.lon));if(hasObjects)while(detailZoom>state.zoom){focused=focusedObjectTileEntries(detailZoom);if(overview.length+focused.entries.length<=800)break;detailZoom--}else detailZoom=state.zoom;let all=[...overview,...focused.entries],seen=new Set(),entries=all.filter(e=>{let key=`${e.layerId}|${e.kind}|${e.z}|${e.x}|${e.y}`;if(seen.has(key))return false;seen.add(key);return true}),actualDetail=Math.max(state.zoom,...focused.entries.map(e=>e.z));return{entries,detailZoom:actualDetail,radius:focused.radius}}
@@ -939,6 +925,130 @@ function initTileLoading(){
  updateTileStatus();
 }
 
+let v2ProjectionBox=null,v2ExportDimensions=true;
+function v2CanvasBlob(canvas,type="image/png",quality=.94){return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error("Bild konnte nicht codiert werden.")),type,quality))}
+
+function v2PdfBytes(jpeg,width,height,paperWidth,paperHeight,margin=10){
+ const enc=new TextEncoder(),parts=[],offsets=[0];let length=0;
+ const push=v=>{const b=typeof v==="string"?enc.encode(v):v;parts.push(b);length+=b.length};
+ const obj=(n,head,stream)=>{offsets[n]=length;push(n+" 0 obj\n"+head);if(stream){push("\nstream\n");push(stream);push("\nendstream")}push("\nendobj\n")};
+ const pw=paperWidth*72/25.4,ph=paperHeight*72/25.4,m=margin*72/25.4,scale=Math.min((pw-2*m)/width,(ph-2*m)/height),w=width*scale,h=height*scale;
+ push("%PDF-1.4\n");push(new Uint8Array([37,226,227,207,211,10]));
+ obj(1,"<< /Type /Catalog /Pages 2 0 R >>");
+ obj(2,"<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+ obj(3,"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+pw.toFixed(4)+" "+ph.toFixed(4)+"] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>");
+ obj(4,"<< /Type /XObject /Subtype /Image /Width "+width+" /Height "+height+" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "+jpeg.length+" >>",jpeg);
+ const drawing=enc.encode("q\n"+w.toFixed(4)+" 0 0 "+h.toFixed(4)+" "+((pw-w)/2).toFixed(4)+" "+((ph-h)/2).toFixed(4)+" cm\n/Im0 Do\nQ\n");
+ obj(5,"<< /Length "+drawing.length+" >>",drawing);
+ const start=length;push("xref\n0 6\n0000000000 65535 f \n");for(let i=1;i<=5;i++)push(String(offsets[i]).padStart(10,"0")+" 00000 n \n");
+ push("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"+start+"\n%%EOF\n");
+ const result=new Uint8Array(length);let p=0;for(const b of parts){result.set(b,p);p+=b.length}return result
+}
+
+function v2Paper(o){let a=({A4:[210,297],A3:[297,420],A2:[420,594],A1:[594,841],A0:[841,1189]})[o.paper]||[210,297];return o.orientation==="landscape"?[a[1],a[0]]:a}
+
+function v2ExportExtent(o){
+ const box=$("map").getBoundingClientRect(),paper=v2Paper(o),header=40,footer=48;
+ let width=Math.max(320,Math.round(box.width)),height=Math.max(220,Math.round(box.height)),center=[...state.center],zoom=state.zoom;
+ if(o.format==="pdf"){width=960;height=Math.max(220,Math.round(width*(paper[1]-20)/(paper[0]-20))-header-footer)}
+ const ids=new Set(selectionIds()),objects=state.objects.filter(x=>visible(x)&&(o.scope!=="selected"||ids.has(x.id)));
+ if(o.scope!=="current"){
+  let pts=objects.flatMap(x=>[...objectPoints(x),...framePoints(x)]);
+  if(o.scope==="all"&&o.measures)for(const m of state.measurements)if(layerVisible(m.layerId||"measure"))pts.push(...m.points);
+  if(o.scope==="all"&&o.routes&&route?.points)pts.push(...route.points);
+  if(!pts.length)throw Error("Keine sichtbaren Objekte bzw. Messungen für diesen Ausschnitt.");
+  let origin=world(...center,0),minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for(const p of pts){let [x,y]=world(...p,0);x+=Math.round((origin[0]-x)/256)*256;minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
+  center=unworld((minX+maxX)/2,(minY+maxY)/2,0);zoom=Math.max(2,Math.min(24,Math.log2(Math.min(width*.72/Math.max(1e-8,maxX-minX),height*.72/Math.max(1e-8,maxY-minY)))));
+ }else if(o.format==="pdf"&&!o.scale){zoom+=Math.log2(Math.min(width/Math.max(1,box.width),height/Math.max(1,box.height)))}
+ if(o.format==="pdf"&&o.scale){const mpp=(paper[0]-20)/1000*o.scale/width;zoom=Math.log2(Math.cos(center[0]*Math.PI/180)*ORIGIN/(256*mpp))}
+ if(!Number.isFinite(zoom)||zoom<0||zoom>28)throw Error("Dieser Druckmaßstab ist für den Ausschnitt nicht geeignet.");
+ return{width,height,header,footer,center,zoom,objects,paper}
+}
+
+function v2TilePlan(view,layers){
+ const result=[],{width,height,center,zoom}=view,c=world(...center,zoom),origin=[c[0]-width/2,c[1]-height/2];
+ for(const layer of layers){
+  const p=PROVIDERS[layer.provider],z=Math.max(0,Math.min(Math.floor(zoom),p.maxZoom??Math.floor(zoom))),factor=2**(zoom-z),size=256*factor,n=2**z;
+  for(let y=Math.floor(origin[1]/size);y<=Math.ceil((origin[1]+height)/size)-1;y++)for(let x=Math.floor(origin[0]/size);x<=Math.ceil((origin[0]+width)/size)-1;x++){
+   if(y<0||y>=n)continue;
+   for(const [template,overlay] of [[p.url,false],[p.overlay,true]])if(template)result.push({layerId:layer.id,url:mapTileUrl(template,z,x,y),x:x*size-origin[0],y:y*size-origin[1],size,overlay});
+  }
+ }
+ return result
+}
+
+async function v2ReadTile(entry,signal,offline){
+ const candidates=mapTileSources(entry.url),cache=await (typeof caches!=="undefined"?caches.open("lageplaner-tiles-v1").catch(()=>null):null);
+ const decode=async r=>{if(!r?.ok||r.type==="opaque")throw Error("Nicht lesbar");const blob=await r.blob();if(!blob.size)throw Error("Leere Kachel");const url=URL.createObjectURL(blob),img=new Image();try{img.src=url;await img.decode();return{img,url}}catch(e){URL.revokeObjectURL(url);throw e}};
+ for(const src of candidates){if(signal.aborted)throw Error("Abgebrochen");try{const r=await cache?.match(src);if(r)return await decode(r)}catch{}}
+ if(offline)throw Error("Nicht im Offline-Cache");
+ for(const src of candidates){
+  if(signal.aborted)throw Error("Abgebrochen");const controller=new AbortController(),abort=()=>controller.abort(),timer=setTimeout(abort,10000);signal.addEventListener("abort",abort,{once:true});
+  try{let r=await fetch(src,{mode:"cors",signal:controller.signal});return await decode(r)}catch{}finally{clearTimeout(timer);signal.removeEventListener("abort",abort)}
+ }
+ throw Error("Kartenquelle liefert keine exportierbaren Bilddaten")
+}
+
+async function v2BuildExport(o,signal,report=()=>{}){
+ const v=v2ExportExtent(o),layers=o.map?visibleMapLayers().map(l=>({...l})):[],entries=v2TilePlan(v,layers);
+ if(entries.length>400)throw Error("Zu viele Kacheln. Bitte kleineren Ausschnitt oder anderen Maßstab wählen.");
+ const ratio=Math.min(o.quality||2,Math.sqrt(12000000/(v.width*(v.height+v.header+v.footer))),4096/Math.max(v.width,v.height+v.header+v.footer));
+ const canvas=document.createElement("canvas");canvas.width=Math.round(v.width*ratio);canvas.height=Math.round((v.height+v.header+v.footer)*ratio);
+ const ctx=canvas.getContext("2d");ctx.scale(canvas.width/v.width,canvas.height/(v.height+v.header+v.footer));
+ ctx.fillStyle="#fff";ctx.fillRect(0,0,v.width,v.height+v.header+v.footer);
+ ctx.save();ctx.translate(0,v.header);ctx.beginPath();ctx.rect(0,0,v.width,v.height);ctx.clip();ctx.fillStyle=layers.length?"#d9e7e7":"#e8f0ef";ctx.fillRect(0,0,v.width,v.height);
+ const oldState=state,oldRoute=route,oldBox=v2ProjectionBox,oldDimensions=v2ExportDimensions;let svg;
+ try{
+  state={...state,center:v.center,zoom:v.zoom,objects:o.objects?v.objects:[],measurements:o.measures&&o.scope!=="selected"?state.measurements:[],dimensions:o.measures?state.dimensions:[],grid:o.grid&&state.grid};
+  if(!o.routes||o.scope==="selected"){route=null;state.route=null;state.showRoutePois=false;state.routePois=[]}
+  v2ProjectionBox={width:v.width,height:v.height};v2ExportDimensions=o.measures;svg=planSvg(true)
+ }finally{state=oldState;route=oldRoute;v2ProjectionBox=oldBox;v2ExportDimensions=oldDimensions}
+ const title=String(oldState.name),attribution=[...new Set(layers.map(l=>PROVIDERS[l.provider].attribution))].join(" · ")||"Neutrale Planfläche";
+ const screenImages=new Map();for(const im of $("tiles").querySelectorAll("img"))if(im.complete&&im.naturalWidth&&im.dataset.tileDisplayOnly!=="true")screenImages.set(im.dataset.tileSource,im);
+ const failed=new Map();let completed=0;
+ for(const layer of layers){
+  if(signal.aborted)throw Error("Abgebrochen");
+  const buffer=document.createElement("canvas");buffer.width=canvas.width;buffer.height=Math.round(v.height*canvas.width/v.width);const bc=buffer.getContext("2d");bc.scale(buffer.width/v.width,buffer.height/v.height);
+  const list=entries.filter(e=>e.layerId===layer.id);const fetched=new Map();
+  const pending=[];for(const e of list){let img=screenImages.get(e.url);if(img){try{let check=document.createElement("canvas");check.width=check.height=1;let cc=check.getContext("2d");cc.drawImage(img,0,0,1,1);cc.getImageData(0,0,1,1);fetched.set(e,{img});continue}catch{}}pending.push(e)}
+  let cursor=0;await Promise.all(Array.from({length:Math.min(6,pending.length)},async()=>{while(cursor<pending.length){let e=pending[cursor++];if(signal.aborted)return;try{fetched.set(e,await v2ReadTile(e,signal,offlineEnabled))}catch{failed.set(e,PROVIDERS[layer.provider].name)}report(++completed,entries.length)}}));
+  if(signal.aborted){for(const t of fetched.values())if(t.url)URL.revokeObjectURL(t.url);throw Error("Abgebrochen")}
+  for(const e of list){const t=fetched.get(e);if(!t)continue;try{bc.globalAlpha=e.overlay?.43:1;bc.globalCompositeOperation=e.overlay?"multiply":"source-over";bc.drawImage(t.img,e.x,e.y,e.size,e.size)}catch{failed.set(e,PROVIDERS[layer.provider].name)}finally{if(t.url)URL.revokeObjectURL(t.url)}}
+  completed+=list.length-pending.length;report(completed,entries.length);
+  ctx.globalAlpha=layer.opacity;ctx.drawImage(buffer,0,0,v.width,v.height);ctx.globalAlpha=1;buffer.width=buffer.height=1;
+ }
+ if(signal.aborted)throw Error("Abgebrochen");
+ const svgUrl=URL.createObjectURL(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="'+v.width+'" height="'+v.height+'" viewBox="0 0 '+v.width+' '+v.height+'"><style>text{font:12px Arial;paint-order:stroke;stroke:white;stroke-width:3px;stroke-linejoin:round;fill:#191b21}.group-label{font-weight:bold}.dim-label{fill:#733a15}.measure-label{fill:#153e6d}.gridline{stroke:#33333323;stroke-width:1}</style>',svg,"</svg>"],{type:"image/svg+xml"}));
+ try{const img=new Image();img.src=svgUrl;await img.decode();ctx.drawImage(img,0,0)}finally{URL.revokeObjectURL(svgUrl)}
+ if(o.scaleBar){const mpp=Math.cos(v.center[0]*Math.PI/180)*ORIGIN/(256*2**v.zoom),target=mpp*Math.min(100,v.width/4),pow=10**Math.floor(Math.log10(target)),dist=[1,2,5].map(n=>n*pow).filter(n=>n<=target).pop()||pow,len=dist/mpp,x=12,y=v.height-13;ctx.fillStyle="#ffffffe8";ctx.fillRect(x-5,y-23,len+10,30);ctx.strokeStyle="#222";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y-5);ctx.lineTo(x,y);ctx.lineTo(x+len,y);ctx.lineTo(x+len,y-5);ctx.stroke();ctx.fillStyle="#222";ctx.font="11px Arial";ctx.fillText(dist>=1000?fmt(dist/1000)+" km":dist<1?fmt(dist*100)+" cm":fmt(dist)+" m",x,y-8)}
+ ctx.restore();ctx.fillStyle="#202125";ctx.fillRect(0,0,v.width,v.header);ctx.fillStyle="#f4cf38";ctx.font="bold 16px Arial";ctx.fillText(o.title?title:"GeoPlan",12,25,v.width-24);
+ ctx.fillStyle="#34363a";ctx.font="11px Arial";let lines=[],line="";for(const word of attribution.split(" ")){let next=line?line+" "+word:word;if(ctx.measureText(next).width>v.width-24&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line);
+ for(let i=0;i<Math.min(2,lines.length);i++)ctx.fillText(lines[i],12,v.height+v.header+13+i*12,v.width-24);
+ if(failed.size){ctx.fillStyle="#a02222";ctx.fillText(failed.size+" Kartenkachel(n) fehlen – unvollständige Karte",12,v.height+v.header+40,v.width-24)}
+ else if(o.scale&&o.format==="pdf"){ctx.fillText("Druckmaßstab am Kartenmittelpunkt 1:"+o.scale+" · mit 100 % drucken",12,v.height+v.header+40,v.width-24)}
+ return{canvas,missing:failed.size,failures:[...new Set(failed.values())],paper:v.paper}
+}
+
+function v2ExportDialog(initial="png"){
+ if($("v2ExportDialog")?.open)return;
+ const d=document.createElement("dialog");d.id="v2ExportDialog";d.className="sheet v2-export";d.setAttribute("aria-labelledby","v2ExportTitle");
+ d.innerHTML='<header class="v2-dialog-head"><h2 id="v2ExportTitle">Lageplan exportieren</h2><button type="button" data-close aria-label="Schließen">×</button></header><div class="v2-export-grid"><div class="v2-export-options"><label>Format<select id="v2Format"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF (Datei)</option></select></label><label>Ausschnitt<select id="v2Scope"><option value="current">Aktueller Kartenausschnitt</option><option value="all">Alle sichtbaren Inhalte</option><option value="selected">Ausgewählte Objekte</option></select></label><div id="v2PaperOptions"><label>Papier<select id="v2Paper"><option>A4</option><option>A3</option><option>A2</option><option>A1</option><option>A0</option></select></label><label>Ausrichtung<select id="v2Orientation"><option value="landscape">Querformat</option><option value="portrait">Hochformat</option></select></label><label>Druckmaßstab<select id="v2Scale"><option value="0">Automatisch einpassen</option><option value="100">1:100</option><option value="250">1:250</option><option value="500">1:500</option><option value="1000">1:1.000</option><option value="5000">1:5.000</option></select></label></div><label>Auflösung<select id="v2Quality"><option value="1">Standard</option><option value="2" selected>Hoch</option><option value="3">Sehr hoch</option></select></label><div class="v2-checks">'+[["Map","Kartenhintergrund",true],["Objects","Objekte und Gruppen",true],["Measures","Messungen und Maße",true],["Routes","Routen und Rastanlagen",true],["Grid","Raster (falls aktiviert)",true],["ScaleBar","Maßstabsleiste",true],["Title","Projekttitel",true]].map(([id,name,on])=>'<label><input type="checkbox" id="v2'+id+'" '+(on?'checked':'')+'> '+name+'</label>').join("")+'</div></div><div class="v2-export-preview"><p id="v2ExportStatus" role="status" aria-live="polite">Vorschau erstellen, um die Exportierbarkeit der Karte zu prüfen.</p><progress id="v2ExportProgress" max="1" value="0"></progress><div id="v2PreviewImage"></div><label id="v2IncompleteRow" class="hidden"><input id="v2AllowIncomplete" type="checkbox"> Unvollständigen Kartenexport ausdrücklich zulassen</label></div></div><footer><button data-close>Schließen</button><button id="v2PreviewBtn">Vorschau erstellen</button><button id="v2PrintBtn" disabled>Drucken</button><button id="v2DownloadBtn" class="primary" disabled>Datei speichern</button></footer>';
+ document.body.append(d);$("v2Format").value=initial;let result=null,controller=null,serial=0;
+ const opt=()=>({format:$("v2Format").value,scope:$("v2Scope").value,paper:$("v2Paper").value,orientation:$("v2Orientation").value,scale:Number($("v2Scale").value),quality:Number($("v2Quality").value),map:$("v2Map").checked,objects:$("v2Objects").checked,measures:$("v2Measures").checked,routes:$("v2Routes").checked,grid:$("v2Grid").checked,scaleBar:$("v2ScaleBar").checked,title:$("v2Title").checked});
+ const update=()=>{let ok=!!result&&(!result.missing||$("v2AllowIncomplete").checked);$("v2DownloadBtn").disabled=$("v2PrintBtn").disabled=!ok};
+ const clear=()=>{serial++;controller?.abort();result=null;$("v2PreviewImage").replaceChildren();$("v2IncompleteRow").classList.add("hidden");$("v2AllowIncomplete").checked=false;$("v2ExportProgress").value=0;$("v2ExportStatus").textContent="Vorschau aktualisieren.";$("v2PaperOptions").classList.toggle("hidden",$("v2Format").value!=="pdf");update()};
+ d.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>d.close());d.addEventListener("close",()=>{serial++;controller?.abort();d.remove()},{once:true});
+ d.addEventListener("change",e=>{if(e.target.id==="v2AllowIncomplete")update();else clear()});
+ $("v2PreviewBtn").onclick=async()=>{clear();let token=serial;controller=new AbortController();const options=opt();$("v2ExportStatus").textContent="Kartendaten werden geprüft …";try{
+  const r=await v2BuildExport(options,controller.signal,(n,total)=>{if(token!==serial||!d.isConnected)return;$("v2ExportProgress").max=Math.max(1,total);$("v2ExportProgress").value=n;$("v2ExportStatus").textContent=n+" / "+total+" Kartenkacheln verarbeitet …"});
+  if(token!==serial||!d.isConnected)return;result={...r,options};$("v2PreviewImage").append(r.canvas);$("v2ExportProgress").max=1;$("v2ExportProgress").value=1;$("v2IncompleteRow").classList.toggle("hidden",!r.missing);
+  $("v2ExportStatus").textContent=r.missing?r.missing+" Kachel(n) fehlen bei "+r.failures.join(", ")+". Andere Kartenquelle verwenden oder unvollständigen Export bewusst zulassen.":"Vorschau vollständig · "+r.canvas.width+" × "+r.canvas.height+" px";update()
+ }catch(e){if(token===serial&&d.isConnected)$("v2ExportStatus").textContent="Export nicht möglich: "+e.message}};
+ $("v2DownloadBtn").onclick=async()=>{const r=result;if(!r)return;const button=$("v2DownloadBtn");button.disabled=true;try{let extension=r.options.format,blob;if(extension==="pdf"){let jpg=await v2CanvasBlob(r.canvas,"image/jpeg",.95);blob=new Blob([v2PdfBytes(new Uint8Array(await jpg.arrayBuffer()),r.canvas.width,r.canvas.height,...r.paper)],{type:"application/pdf"})}else blob=await v2CanvasBlob(r.canvas,extension==="jpeg"?"image/jpeg":"image/png");downloadBlob(blob,projectFilename().replace(/\.json$/,"."+extension));setHint("Export an Browser übergeben.")}catch(e){setHint("Export fehlgeschlagen: "+e.message)}finally{if(d.isConnected)update()}};
+ $("v2PrintBtn").onclick=async()=>{const r=result;if(!r)return;try{const im=$("printImage");im.src=r.canvas.toDataURL("image/png");await im.decode();let style=document.createElement("style");style.textContent="@page{size:"+r.paper[0]+"mm "+r.paper[1]+"mm;margin:10mm} @media print{body>.print-image{max-width:100%;max-height:"+(r.paper[1]-20)+"mm;width:auto;height:auto;object-fit:contain;margin:auto}}";document.head.append(style);d.close();window.addEventListener("afterprint",()=>style.remove(),{once:true});window.print()}catch(e){setHint("Drucken fehlgeschlagen: "+e.message)}};
+ d.showModal();clear();$("v2PreviewBtn").click()
+}
 init();initExtras();initSaveActions();$('activeLayer').onchange=e=>{let l=layerOf(e.target.value);if(l?.locked)return alert('Gesperrte Ebenen können nicht aktiv sein.');state.activeLayer=e.target.value;changed()};$('objectList').onclick=e=>{let edit=e.target.closest('[data-edit-object]'),zoom=e.target.closest('[data-zoom-object]');if(edit)selectObject(edit.dataset.editObject);if(zoom)zoomToObject(zoom.dataset.zoomObject)};$('layerMenu').onclick=layerMenuAction;$('helpBtn').onclick=e=>{$('helpMenu').classList.toggle('hidden');e.stopPropagation()};document.addEventListener('pointerdown',e=>{if(!e.target.closest('#layerMenu')&&!e.target.closest('[data-layer-options]'))closeLayerMenu();if(!e.target.closest('#helpMenu')&&!e.target.closest('#helpBtn'))$('helpMenu').classList.add('hidden')});initWorkspace();initRouting();initPresentation();initProjectFolders();initTileLoading();startProjectSession();
 </script>
 </body></html>
