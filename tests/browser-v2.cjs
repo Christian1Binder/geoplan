@@ -27,8 +27,14 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+new 
  let download=page.waitForEvent('download');await page.locator('#v2DownloadBtn').click();let d=await download;assert.match(d.suggestedFilename(),/\.png$/);assert.equal(fs.readFileSync(await d.path()).subarray(0,8).toString('hex'),'89504e470d0a1a0a');
  await page.locator('#v2Format').selectOption('pdf');await page.locator('#v2PreviewBtn').click();await page.waitForFunction(()=>document.getElementById('v2ExportStatus')?.textContent.includes('Vorschau vollständig'),{},{timeout:30000});
  download=page.waitForEvent('download');await page.locator('#v2DownloadBtn').click();d=await download;assert.match(d.suggestedFilename(),/\.pdf$/);const pdf=fs.readFileSync(await d.path());assert.equal(pdf.subarray(0,8).toString(),'%PDF-1.4');assert.match(pdf.toString('latin1'),/startxref/);
+ // A display-only map must not silently produce an apparently complete export.
+ await page.evaluate(()=>{v2ReadTile=async()=>{throw Error('CORS test')};document.querySelectorAll('#tiles img').forEach(i=>i.dataset.tileDisplayOnly='true')});
+ await page.locator('#v2Format').selectOption('png');await page.locator('#v2PreviewBtn').click();
+ await page.waitForFunction(()=>document.getElementById('v2ExportStatus')?.textContent.includes('Kachel(n) fehlen'),{},{timeout:30000});
+ assert.equal(await page.locator('#v2DownloadBtn').isDisabled(),true);await page.locator('#v2AllowIncomplete').check();assert.equal(await page.locator('#v2DownloadBtn').isDisabled(),false);
  await page.locator('#v2ExportDialog [data-close]').first().click();
  await page.setViewportSize({width:820,height:1180});await page.locator('#leftPanelBtn').click();assert.ok(await page.locator('.panel.left').isVisible());await page.locator('#rightPanelBtn').click();assert.ok(await page.locator('.panel.right').isVisible());assert.equal(await page.locator('.panel.left').isVisible(),false);
+ await page.setViewportSize({width:390,height:844});await page.waitForTimeout(150);assert.ok(await page.locator('.top').evaluate(e=>e.scrollWidth<=e.clientWidth+2),'phone header must fit');
  assert.deepEqual(errors,[]);console.log('PASS: UI, library search and favorites, object placement, tabs, responsive panels, map pixels in PNG and direct PDF download.');
  }finally{await browser.close();server.close()}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1});
