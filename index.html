@@ -52,6 +52,7 @@ body.presenting .overlay *{pointer-events:none!important}body.presenting .status
 @media print{.geoplan-v2 .print-image{display:block!important}}
 </style>
 <style>.v2-export-region{position:absolute;pointer-events:none;background:#f4cf3830;border:2px dashed #f4cf38;z-index:15}</style>
+<style>.geoplan-v2 #v2MapStatus{white-space:nowrap;color:#b9d9ad}.geoplan-v2 #v2MapStatus[data-warning=true]{color:#ffd17d}@media(max-width:700px){.geoplan-v2 .header-actions summary[data-compact-icon]{font-size:0!important;min-width:31px;text-align:center}.geoplan-v2 .header-actions summary[data-compact-icon]:before{content:attr(data-compact-icon);font-size:15px}.geoplan-v2 .header-actions{justify-content:space-between}.geoplan-v2 .top .brand small{display:none}}</style>
 </head>
 <body>
 <header class="top">
@@ -827,6 +828,7 @@ function updateTileStatus(){
  const status=$('tileLoadStatus');if(!status)return;
  const images=[...$('tiles').querySelectorAll('img')],loading=images.filter(i=>i._tileState==='loading'||i._tileState==='retry').length,failed=images.filter(i=>i._tileState==='failed').length,stale=images.filter(i=>i.dataset.tileStale==='true').length,direct=images.filter(i=>i.dataset.tileDisplayOnly==='true').length;
  status.textContent=!images.length?'':loading?`${loading} Kacheln werden geladen …`:failed?`${failed} Kacheln fehlen. ${offlineEnabled?'Nicht im lokalen Cache vorhanden.':'Abruf fehlgeschlagen. Details unter „Ladediagnose“; „Kompatibler Bildabruf“ kann helfen.'}`:stale?`${stale} Kacheln aus dem Cache – Aktualisierung fehlgeschlagen.`:offlineEnabled?'Kartenausschnitt aus lokalem Cache.':direct?`Kompatible Anzeige: ${direct} Kacheln ohne Export- und Offline-Speicherung.`:'Kartenausschnitt geladen.';
+ if($('v2MapStatus')){let b=$('v2MapStatus');b.textContent=!images.length?'Planfläche':loading?'Karte lädt …':failed?'Kacheln fehlen':direct?'Karte: ggf. nur Anzeige':stale?'Karte: Cache':'Karte bereit';b.dataset.warning=String(!!(failed||direct));b.title=status.textContent}
  if($('tileDiagnostics'))$('tileDiagnostics').textContent=[...new Set(images.map(i=>i.dataset.tileError||i.dataset.tileMethod).filter(Boolean))].join('\n')||'Noch kein Abruf.';
  $('reloadMapTiles').disabled=offlineEnabled||!images.length;
 }
@@ -1019,7 +1021,7 @@ function v2Init(){
  $("leftPanelBtn").textContent="☰";$("leftPanelBtn").title="Bibliothek / Objekte / Route öffnen";$("leftPanelBtn").setAttribute("aria-label","Linke Seitenleiste");
  $("rightPanelBtn").textContent="▤";$("rightPanelBtn").title="Eigenschaften / Ebenen / Karte öffnen";$("rightPanelBtn").setAttribute("aria-label","Rechte Seitenleiste");
  for(const side of ["left","right"]){const button=$(side==="left"?"leftPanelBtn":"rightPanelBtn");button.onclick=()=>{const compact=matchMedia("(max-width:1000px)").matches;let open=compact?!document.querySelector("."+side).classList.contains("mobile-open"):layout.classList.contains("v2-hide-"+side);v2SetPanel(side,open)}}
- const resizeMode=()=>{const small=matchMedia("(max-width:1000px)").matches;for(const s of ["left","right"]){if(small){document.querySelector("."+s).classList.remove("mobile-open");$(s==="left"?"leftPanelBtn":"rightPanelBtn").setAttribute("aria-expanded","false")}else v2SetPanel(s,v2Get("show-"+s,true),false)}};
+ const resizeMode=()=>{const small=matchMedia("(max-width:1000px)").matches;if(small)layout.classList.remove("v2-hide-left","v2-hide-right");for(const s of ["left","right"]){if(small){document.querySelector("."+s).classList.remove("mobile-open");$(s==="left"?"leftPanelBtn":"rightPanelBtn").setAttribute("aria-expanded","false")}else{document.querySelector("."+s).classList.remove("mobile-open");v2SetPanel(s,v2Get("show-"+s,true),false)}}};
  matchMedia("(max-width:1000px)").addEventListener("change",resizeMode);resizeMode();
  for(const side of ["left","right"]){
   const panel=document.querySelector("."+side);let width=Math.max(190,Math.min(420,Number(v2Get("width-"+side,side==="left"?230:270))||230));layout.style.setProperty("--v2-"+side,width+"px");
@@ -1031,7 +1033,7 @@ function v2Init(){
  const exportButton=v2Button("Export",()=>v2ExportDialog("png"));exportButton.id="v2ExportBtn";$("saveBtn").after(exportButton);
  const edit=v2Menu("Bearbeiten",[$("copyBtn"),$("cutBtn"),$("pasteBtn"),v2Button("Duplizieren",duplicate),v2Button("Gruppieren",createGroup),v2Button("Auswahl löschen",()=>removeSelectedObjects())]);
  const view=v2Menu("Ansicht",[$("gridBtn"),$("snapBtn"),$("planningModeBtn"),$("presentationBtn"),v2Button("Kartenfläche maximieren",()=>{v2SetPanel("left",false);v2SetPanel("right",false)}),v2Button("Seitenleisten zurücksetzen",()=>{v2SetPanel("left",true);if(!matchMedia("(max-width:1000px)").matches)v2SetPanel("right",true)})]);
- $("saveBtn").before(edit,view);
+ edit.querySelector("summary").dataset.compactIcon="✎";view.querySelector("summary").dataset.compactIcon="◉";edit.querySelector("summary").title="Bearbeiten";view.querySelector("summary").title="Ansicht";$("saveBtn").before(edit,view);
  const file=document.querySelector(".header-actions>.file-menu:not(.v2-menu)>div");
  if(file){file.append(v2Button("Team & Offline",()=>{$("leftPanelBtn").setAttribute("aria-expanded","true");v2SetPanel("left",true);left.querySelector('[data-tab="team"]')?.click()}))}
  $("exportBtn").textContent="Bild exportieren …";$("printBtn").textContent="PDF / Drucken …";
@@ -1064,6 +1066,7 @@ function v2Init(){
  const folderControls=document.querySelector(".folder-controls");if(folderControls){let details=document.createElement("details");details.className="v2-folder-tools";details.innerHTML="<summary>Projektordner verwalten</summary>";folderControls.prepend(details);for(const n of [$("newProjectFolder"),$("activeProjectFolder").closest("label"),$("moveProjectFolder").closest(".smallbar")])details.append(n)}
  const group=document.querySelector(".group-manager");if(group){let d=document.createElement("details");d.className="v2-folder-tools";d.innerHTML="<summary>Gruppen</summary>";group.before(d);d.append(group)}
  $("properties").addEventListener("focusout",()=>setTimeout(()=>{if(!$("properties").contains(document.activeElement)){delete v2RenderKeys.props;renderAll()}},0));
+ const mapStatus=document.createElement("span");mapStatus.id="v2MapStatus";mapStatus.title="Status der Kartenkacheln; Details unter Karte";mapStatus.textContent="Karte";$("source").before(mapStatus);updateTileStatus();
  const recovery=document.createElement("span");recovery.id="v2RecoveryStatus";recovery.className="hint";recovery.textContent="Lokale Sicherung bereit";$("source").after(recovery);
  // Keep map projection in sync when side panels resize; no full UI reconstruction.
  if("ResizeObserver"in window){let frame=0;new ResizeObserver(()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{renderTiles();renderOverlay();renderStatus()})}).observe(map)}
