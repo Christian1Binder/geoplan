@@ -1,0 +1,24 @@
+// Run with node tests/export-v2.cjs
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+const element={value:'Test',getBoundingClientRect:()=>({width:900,height:650}),textContent:'',innerHTML:''};
+const c=vm.createContext({crypto:require('node:crypto').webcrypto,document:{getElementById:()=>element},structuredClone,TextEncoder,URL});
+vm.runInContext(source.slice(0,source.lastIndexOf('\ninit();')),c);const run=s=>vm.runInContext(s,c);
+assert.ok(run("(()=>{let p=[49.49,10.79],q=unworld(...world(...p,17),17);return Math.abs(q[0]-p[0])<1e-9&&Math.abs(q[1]-p[1])<1e-9})()"));
+run("state.mapLayers=[{id:'h',provider:'hybrid',visible:true,opacity:.8}];normalizeMapLayers();normalizeMapLayers()");
+assert.equal(run('state.mapLayers.length'),2);assert.equal(run('state.mapLayers[1].opacity'),.8*.43);
+run("state.mapLayers=[{id:'base',provider:'osm',visible:true,opacity:1},{id:'off',provider:'sat',visible:false,opacity:1},{id:'zero',provider:'bavaria',visible:true,opacity:0}]");
+assert.equal(run('visibleMapLayers().length'),1);
+assert.ok(run("(()=>{let v={width:900,height:650,center:[49.49,10.79],zoom:18.5};let e=v2TilePlan(v,visibleMapLayers());return e.length>0&&e.every(x=>x.size>256&&x.url.includes('/18/')&&x.x<v.width&&x.y<v.height&&x.x+x.size>0&&x.y+x.size>0)})()"));
+assert.ok(run("(()=>{let l=[{id:'a',provider:'osm',opacity:1},{id:'b',provider:'bavaria',opacity:.5}],e=v2TilePlan({width:900,height:650,center:[49.49,10.79],zoom:18},l);return e[0].layerId==='a'&&e.at(-1).layerId==='b'&&e.filter(x=>x.layerId==='b').every(x=>x.url.includes('BBOX='))})()"));
+assert.ok(run("(()=>{let v=v2ExportExtent({format:'pdf',paper:'A4',orientation:'landscape',scope:'current',scale:500});let mpp=Math.cos(v.center[0]*Math.PI/180)*ORIGIN/(256*2**v.zoom);return v.paper[0]===297&&v.paper[1]===210&&Math.abs(mpp*v.width-138.5)<1e-6})()"));
+const pdf=Buffer.from(run('v2PdfBytes(new Uint8Array([255,216,255,217]),1,1,297,210)'));
+const ascii=pdf.toString('latin1'),xref=Number(ascii.match(/startxref\n(\d+)/)[1]);
+assert.equal(ascii.slice(xref,xref+4),'xref');assert.match(ascii,/\/DCTDecode/);
+ascii.slice(xref).split('\n').slice(3,8).forEach((r,i)=>assert.equal(ascii.slice(+r.slice(0,10),+r.slice(0,10)+7),(i+1)+' 0 obj'));
+run("state.types=[{id:'t',name:'Haus',shape:'rectangle',length:10,width:8,diameter:10,color:'#000000'}];state.objects=[{id:'a',typeId:'t',lat:49.49,lon:10.79,length:10,width:8,layerId:'plan',rotation:0},{id:'b',typeId:'t',lat:49.5,lon:10.8,length:10,width:8,layerId:'plan',hidden:true}];state=normalizeProject(JSON.parse(projectData()));selectIds(['a','b'])");
+assert.equal(run('state.objects.length'),2);assert.equal(run('state.projectFolders.length'),0);assert.equal(run("v2ExportExtent({format:'png',scope:'selected',paper:'A4',orientation:'landscape'}).objects.map(x=>x.id).join(',')"),'a');
+assert.equal(run("v2TilePlan({width:900,height:650,center:[49.49,10.79],zoom:18},[]).length"),0);
+run("v2CustomRegion=[[49.49,10.79],[49.50,10.80]]");
+assert.ok(run("(()=>{let v=v2ExportExtent({format:'png',scope:'custom',paper:'A4',orientation:'landscape'});return v.zoom>10&&Math.abs(v.center[0]-49.495)<.001&&Math.abs(v.center[1]-10.795)<.001})()"));
+console.log('PASS: geometry, legacy layers and projects, fractional tile zoom, compositing order, fixed print scale, PDF offsets, selection and custom extent.');
