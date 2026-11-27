@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+const script=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+const elem={value:'Test',getBoundingClientRect:()=>({width:900,height:650})};
+const c=vm.createContext({crypto:require('node:crypto').webcrypto,document:{getElementById:()=>elem},structuredClone,URL,TextEncoder});
+vm.runInContext(script.slice(0,script.lastIndexOf('\ninit();')),c);const run=s=>vm.runInContext(s,c);
+run("state.center=[49.49,10.79];state.zoom=18;state.types=[{id:'t',libraryKey:'custom-t',name:'Private type',shape:'rectangle',length:10,width:8,diameter:10,color:'#000000'}];state.objects=[{id:'a',typeId:'t',lat:49.49,lon:10.79,length:10,width:8,layerId:'plan',rotation:0,color:'#000000',opacity:.5,label:'Secret name',description:'Secret description',labelName:false,labelDimensions:false,labelDescription:true},{id:'b',typeId:'t',lat:49.49,lon:10.7903,length:10,width:8,layerId:'plan',rotation:0,color:'#000000',opacity:.5,label:'Other name'}];normalizeProjectFolders(state)");
+assert.equal(run("v21NameText(state.objects[0],state.types[0],false,false)"),'Secret description');
+run("v21ExportLabels={mode:'none',entries:{}}");assert.equal(run("v21NameText(state.objects[0],state.types[0],true,false)"),'');
+run("v21ExportLabels={mode:'all',entries:{}}");assert.equal(run("v21NameText(state.objects[0],state.types[0],true,false)"),'Secret name · Secret description');
+run("v21ExportLabels={mode:'manual',entries:{'object:a':{labelName:true,labelDimensions:false,labelDescription:false}}}");assert.equal(run("v21NameText(state.objects[0],state.types[0],true,false)"),'Secret name');
+assert.equal(run("v21LabelSetting(state.objects[0],'labelDimensions',true,true)"),false);
+run("state.objects[0].labelExport=false;v21ExportLabels={mode:'individual',entries:{}}");assert.equal(run("v21NameText(state.objects[0],state.types[0],true,false)"),'');
+assert.equal(run("v21NameText(state.objects[0],state.types[0],false,false)"),'Secret description');
+assert.equal(run("normalizeProject(JSON.parse(projectData())).objects[0].labelName"),false);
+assert.equal(run("normalizeProject(JSON.parse(projectData())).objects[0].labelExport"),false);
+run("let privateLib=v21LibrarySnapshot();let empty={types:[],complexTemplates:[],libraryCategories:['Standard']};v21MergeLocalLibrary(empty,privateLib);v21MergeLocalLibrary(empty,privateLib)");assert.equal(run('empty.types.length'),1);assert.equal(run('empty.types[0].name'),'Private type');
+console.log('PASS: individual defaults, all/none/manual overrides, export inclusion, project serialization, idempotent local-library merge.');

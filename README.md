@@ -1,4 +1,4 @@
-# GeoPlan 2.0
+# GeoPlan 2.1
 
 Browserbasierter, maßhaltiger Lageplaner mit Kartenebenen, Objektbibliothek, Projektordnern, Gruppen, Messungen, Routen, Offline-Paketen und Präsentationsmodus.
 
@@ -19,6 +19,16 @@ Export öffnet eine Vorschau für PNG, JPEG und PDF. Kartenausschnitt, sichtbare
 Kartenkacheln werden aus lesbaren Anzeigedaten, Cache oder CORS-fähigem Abruf zusammengesetzt. Sichtbarkeit, Reihenfolge und Deckkraft werden berücksichtigt. Fehlende Kacheln werden in der Vorschau und in einem ausdrücklich zugelassenen unvollständigen Export gekennzeichnet. Ein vollständiger Export setzt exportierbare Kartenbilddaten voraus: Fremdserver, die keinen CORS-Zugriff erlauben, können nicht durch die statische App umgangen werden. Die App wechselt in diesem Fall nicht stillschweigend die Kartenquelle. Quellen- und Lizenzangaben bleiben enthalten.
 
 Der PDF-Export erzeugt eine eigenständige einseitige Raster-PDF ohne externe PDF-Bibliothek. Für feste Druckmaßstäbe mit 100 % / tatsächlicher Größe drucken. Kartenprojektion, Bildqualität und die Druckereinstellungen begrenzen die Genauigkeit; kein Vermessungsersatz.
+
+## Individuelle Beschriftungen (2.1)
+
+Im Objektinspektor stehen Name, Abmessungen, Beschreibung und Berücksichtigung beim Export pro Objekt zur Verfügung; Mehrfachauswahl und Gruppenname werden ebenfalls unterstützt. Automatisch entspricht dem bisherigen globalen Verhalten. Exportmodi: Objekteinstellungen übernehmen, alle, keine oder einzelne Namen/Maße/Texte auswählen. Die manuelle Liste lässt sich durchsuchen. Die Einstellungen im Export verändern das Projekt nicht. Objektmaße setzen die Exportoption „Messungen und Maße“ voraus.
+
+## Datenschutz der persönlichen Bibliothek
+
+Eigene Typen und Komplexe werden ausschließlich lokal in IndexedDB und ersatzweise/zusätzlich im LocalStorage des Browsers gespeichert, getrennt vom letzten Projekt. Es gibt keinen Upload, keine Synchronisation, kein Benutzerkonto und keine externe Bibliotheks-API. Die bisherigen lokalen Projektbestände werden migriert. Der separate Bibliothekseditor speichert seine eigene letzte Bibliothek lokal und blockiert Netzwerkzugriffe per Content Security Policy. Die Hauptanwendung erlaubt nur eigene Ressourcen und die erforderlichen Karten- und Routingdienste; Suchbegriffe, Kartenausschnitte und Routenkoordinaten können für diese Dienste übertragen werden, keine Bibliothekseinträge. Offline-Pakete können nur von einem lokalen Webserver geladen werden; enthaltene externe Kartenquellen werden abgelehnt.
+
+Projektdateien, Bibliotheksdateien und Offline-Pakete werden durch bewusst ausgelöste lokale Downloads gespeichert und können private Daten enthalten. Die App kann nicht kontrollieren, ob ein Nutzer diese Dateien anschließend manuell teilt, in einen synchronisierten Ordner speichert oder ob das Betriebssystem bzw. der Browser eigene Sicherungen erstellt. Das Löschen von Browserdaten kann lokale Bibliotheken entfernen. Separate lokale Backups bleiben sinnvoll.
 
 ## Dateien und Kompatibilität
 
